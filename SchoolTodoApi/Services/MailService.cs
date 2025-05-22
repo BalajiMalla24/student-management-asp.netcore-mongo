@@ -7,7 +7,7 @@ public class MailService
 {
     public async Task SendEmail(string toEmail, string username, string message)
     {
-        var apiKey = "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";
+        var apiKey = "";
         var client = new SendGridClient(apiKey);
 
         var from = new EmailAddress("bijuvishnu442@gmail.com", "TodoApp");
