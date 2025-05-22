@@ -1,0 +1,19 @@
+                       # Ignore root-level appsettings.json
+/appsettings.json
+
+# Ignore MailService.cs in the Services folder
+/Services/MailService.cs
+
+# # Ignore .env file if used
+# .env
+
+# # ASP.NET Core typical ignores
+# bin/
+# obj/
+# *.user
+# *.suo
+# *.vs/
+# *.db
+# *.log
+# *.tmp
+# *.swp
