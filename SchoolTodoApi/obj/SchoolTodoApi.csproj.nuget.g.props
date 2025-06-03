@@ -13,6 +13,7 @@
     <SourceRoot Include="/home/balajimalla/.nuget/packages/" />
   </ItemGroup>
   <PropertyGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <PkgHangfire_SqlServer Condition=" '$(PkgHangfire_SqlServer)' == '' ">/home/balajimalla/.nuget/packages/hangfire.sqlserver/1.8.20</PkgHangfire_SqlServer>
     <PkgAWSSDK_Core Condition=" '$(PkgAWSSDK_Core)' == '' ">/home/balajimalla/.nuget/packages/awssdk.core/4.0.0.5</PkgAWSSDK_Core>
     <PkgAWSSDK_S3 Condition=" '$(PkgAWSSDK_S3)' == '' ">/home/balajimalla/.nuget/packages/awssdk.s3/4.0.0.5</PkgAWSSDK_S3>
   </PropertyGroup>

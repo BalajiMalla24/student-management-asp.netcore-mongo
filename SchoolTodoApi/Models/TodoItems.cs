@@ -16,6 +16,7 @@ namespace SchoolTodoApi.Models
 
         public bool IsCompleted { get; set; }
 
+        [BsonRepresentation(BsonType.DateTime)]
         public DateTime DueDate { get; set; }
 
         public string RelatedEntityType { get; set; } = string.Empty; // "Student" or "School"
@@ -27,6 +28,6 @@ namespace SchoolTodoApi.Models
 
         // NEW: ID of the user who created this todo
         [BsonRepresentation(BsonType.ObjectId)]
-        public string CreatedById { get; set; } = string.Empty;
+        public string? CreatedById { get; set; }
     }
 }

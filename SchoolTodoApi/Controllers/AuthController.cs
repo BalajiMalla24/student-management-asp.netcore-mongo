@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using SchoolTodoApi.Models;
+using SchoolTodoApi.Services;
 
 namespace SchoolTodoApi.Controllers
 {
@@ -13,46 +14,53 @@ namespace SchoolTodoApi.Controllers
         {
             _authService = authService;
         }
-
+    
         [HttpPost("signup")]
         public async Task<IActionResult> Signup(UserDto userDto)
         {
-            if (string.IsNullOrWhiteSpace(userDto.Email))
+            try
             {
-                return BadRequest("Email is required for registration.");
+                if (string.IsNullOrWhiteSpace(userDto.Email))
+                {
+                    return BadRequest("Email is required for registration.");
+                }
+
+                var user = new User
+                {
+                    Username = userDto.Username,
+                    Role = userDto.Role,
+                    Email = userDto.Email
+                };
+
+                await _authService.Register(user, userDto.Password);
+                return Ok("Registered successfully");
             }
-
-            var user = new User
+            catch (ArgumentException ex)
             {
-                Username = userDto.Username,
-                Role = userDto.Role,
-                Email = userDto.Email
-            };
-
-            await _authService.Register(user, userDto.Password);
-            return Ok("Registered successfully");
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
         }
 
-        
-     
-[HttpPost("login")]
-public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
-{
-    var (token, role, id ) = await _authService.Login(loginDto.Username, loginDto.Password);
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
+        {
+            var (token, role, id) = await _authService.Login(loginDto.Username, loginDto.Password);
 
-    if (token == null )
-    {
-        return Unauthorized("Invalid credentials");
-    }
+            if (token == null)
+            {
+                return Unauthorized("Invalid credentials");
+            }
 
-    return Ok(new
-    {
-        token,
-        role,
-        id
-    });
-}
-
-
+            return Ok(new
+            {
+                token,
+                role,
+                id
+            });
+        }
     }
 }

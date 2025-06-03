@@ -46,8 +46,8 @@ const Login = () => {
 
   return (
     <div
-      className="d-flex align-items-center justify-content-center vh-100 bg-light"
-      style={{ padding: '1rem' }}
+      className="d-flex align-items-center justify-content-center bg-light"
+      style={{ padding: '1rem' , height:'90vh' }}
     >
       <div className="card shadow-sm p-4 rounded" style={{ maxWidth: '400px', width: '100%' }}>
         <h2 className="mb-4 text-center fw-bold text-primary">Login</h2>

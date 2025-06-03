@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SchoolTodoApi.Models;
-using SchoolTodoApi.Services;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using SchoolTodoApi.Repositories.Interfaces;
 
 namespace SchoolTodoApi.Controllers
 {
@@ -11,73 +9,75 @@ namespace SchoolTodoApi.Controllers
     [ApiController]
     public class SchoolsController : ControllerBase
     {
-        private readonly SchoolService _schoolService;
+        private readonly ISchoolRepository _schoolRepository;
+        private readonly IStudentRepository _studentRepository;
 
-        public SchoolsController(SchoolService schoolService)
+        public SchoolsController(ISchoolRepository schoolRepository, IStudentRepository studentRepository)
         {
-            _schoolService = schoolService;
+            _schoolRepository = schoolRepository;
+            _studentRepository = studentRepository;
         }
 
-        [Authorize] 
+        [Authorize]
         [HttpGet]
-        public async Task<ActionResult<List<School>>> Get() =>
-            await _schoolService.GetAsync();
+        public async Task<ActionResult<List<School>>> Get()
+        {
+            var schools = await _schoolRepository.GetAllAsync();
+            return Ok(schools.ToList());
+        }
 
-        [Authorize] 
+        [Authorize]
         [HttpGet("{id}", Name = "GetSchool")]
         public async Task<ActionResult<School>> Get(string id)
         {
-            var school = await _schoolService.GetAsync(id);
-
+            var school = await _schoolRepository.GetByIdAsync(id);
             if (school == null)
             {
                 return NotFound();
             }
-
             return school;
         }
 
-        //Only allow admin to create schools
         [Authorize(Roles = "Admin")]
         [HttpPost]
         public async Task<ActionResult<School>> Create(School school)
         {
-            await _schoolService.CreateAsync(school);
-
+            await _schoolRepository.CreateAsync(school);
             return CreatedAtRoute("GetSchool", new { id = school.Id }, school);
         }
 
-        //Only allow admin to edit schools
         [Authorize(Roles = "Admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(string id, School schoolIn)
         {
-            var school = await _schoolService.GetAsync(id);
-
+            var school = await _schoolRepository.GetByIdAsync(id);
             if (school == null)
             {
                 return NotFound();
             }
+
             schoolIn.Id = id;
-
-            await _schoolService.UpdateAsync(id, schoolIn);
-
+            await _schoolRepository.UpdateAsync(id, schoolIn);
             return NoContent();
         }
-     
+
         [Authorize(Roles = "Admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(string id)
         {
-            var school = await _schoolService.GetAsync(id);
-
+            var school = await _schoolRepository.GetByIdAsync(id);
             if (school == null)
             {
                 return NotFound();
             }
 
-            await _schoolService.RemoveAsync(id);
+            // Delete associated students
+            if (school.StudentIds != null && school.StudentIds.Any())
+            {
+                await _studentRepository.DeleteManyAsync(s => school.StudentIds.Contains(s.Id));
+            }
 
+            await _schoolRepository.DeleteAsync(id);
             return NoContent();
         }
     }

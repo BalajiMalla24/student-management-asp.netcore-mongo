@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using SchoolTodoApi.Models;
-using SchoolTodoApi.Services;
-using System.Collections.Generic;
+using SchoolTodoApi.Repositories.Interfaces;
 
 namespace SchoolTodoApi.Controllers
 {
@@ -9,74 +8,93 @@ namespace SchoolTodoApi.Controllers
     [ApiController]
     public class StudentsController : ControllerBase
     {
-        private readonly StudentService _studentService;
+        private readonly IStudentRepository _studentRepository;
 
-        public StudentsController(StudentService studentService)
+        public StudentsController(IStudentRepository studentRepository)
         {
-            _studentService = studentService;
+            _studentRepository = studentRepository;
         }
 
         [HttpGet]
-        public ActionResult<List<StudentWithSchoolNameDto>> Get() =>
-            _studentService.GetWithSchoolNames();
+        public async Task<ActionResult<List<StudentWithSchoolNameDto>>> Get()
+        {
+            var students = await _studentRepository.GetWithSchoolNamesAsync();
+            return Ok(students);
+        }
 
         [HttpGet("{id}", Name = "GetStudent")]
-        public ActionResult<Student> Get(string id)
+        public async Task<ActionResult<Student>> Get(string id)
         {
-            var student = _studentService.Get(id);
-
-            if (student == null)
+            try
             {
-                return NotFound();
-            }
+                var student = await _studentRepository.GetByIdAsync(id);
 
-            return student;
+                if (student == null)
+                {
+                    return NotFound($"No student found with ID: {id}");
+                }
+
+                return Ok(student);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"An error occurred while fetching the student: {ex.Message}");
+            }
         }
 
         [HttpPost]
-        public ActionResult<Student> Create(Student student)
+        public async Task<ActionResult<Student>> Create(Student student)
         {
-            _studentService.Create(student);
-
-            return CreatedAtRoute("GetStudent", new { id = student.Id }, student);
+            try
+            {
+                await _studentRepository.CreateAsync(student);
+                return CreatedAtRoute("GetStudent", new { id = student.Id }, student);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"An error occurred while creating the student: {ex.Message}");
+            }
         }
 
         [HttpPut("{id}")]
-    public IActionResult Update(string id, Student studentIn)
-{
-    try
-    {
-        var student = _studentService.Get(id);
-        if (student == null)
+        public async Task<IActionResult> Update(string id, Student studentIn)
         {
-            return NotFound();
+            try
+            {
+                var student = await _studentRepository.GetByIdAsync(id);
+                if (student == null)
+                {
+                    return NotFound($"No student found with ID: {id}");
+                }
+
+                studentIn.Id = id;
+                await _studentRepository.UpdateAsync(id, studentIn);
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"An error occurred while updating the student: {ex.Message}");
+            }
         }
 
-        studentIn.Id = id;
-        _studentService.Update(id, studentIn);
-
-        return NoContent();
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error updating student: {ex.Message}");
-        return StatusCode(500, $"Internal server error: {ex.Message}");
-    }
-}
-
         [HttpDelete("{id}")]
-        public IActionResult Delete(string id)
+        public async Task<IActionResult> Delete(string id)
         {
-            var student = _studentService.Get(id);
-
-            if (student == null)
+            try
             {
-                return NotFound();
+                var student = await _studentRepository.GetByIdAsync(id);
+                if (student == null)
+                {
+                    return NotFound($"No student found with ID: {id}");
+                }
+
+                await _studentRepository.DeleteAsync(id);
+                return NoContent();
             }
-
-            _studentService.Remove(student.Id);
-
-            return NoContent();
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"An error occurred while deleting the student: {ex.Message}");
+            }
         }
     }
 }

@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using SchoolTodoApi.Models;
+using SchoolTodoApi.Repositories.Interfaces;
 using SchoolTodoApi.Services;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using MongoDB.Driver;
-
 
 namespace SchoolTodoApi.Controllers
 {
@@ -13,43 +13,57 @@ namespace SchoolTodoApi.Controllers
     [ApiController]
     public class TodoItemsController : ControllerBase
     {
-        private readonly TodoItemService _todoItemService;
+         private readonly TodoItemService _todoItemService;
+        private readonly ITodoItemRepository _todoItemRepository;
+        private readonly IUserRepository _userRepository;
         private readonly S3Service _s3service;
         private readonly MailService _mailservice;
-        private readonly IMongoCollection<User> _users;
-        public TodoItemsController(TodoItemService todoItemService , S3Service s3service , MailService mailservice , ISchoolDatabaseSettings settings)
+          private readonly IMongoCollection<User> _users;
+
+        public TodoItemsController(
+            TodoItemService todoItemService ,
+            ITodoItemRepository todoItemRepository,
+            IUserRepository userRepository,
+            S3Service s3service,
+            MailService mailservice,
+            ISchoolDatabaseSettings settings
+            )
         {
             _todoItemService = todoItemService;
+            _todoItemRepository = todoItemRepository;
+            _userRepository = userRepository;
             _s3service = s3service;
             _mailservice = mailservice;
 
 
-        var client = new MongoClient(settings.ConnectionString);
+            var client = new MongoClient(settings.ConnectionString);
         var database = client.GetDatabase(settings.DatabaseName);
         _users = database.GetCollection<User>("Users"); 
         }
 
         [HttpGet]
-        public async Task<ActionResult<List<TodoItem>>> Get() =>
-            await _todoItemService.GetAsync();
+        public async Task<ActionResult<List<TodoItem>>> Get()
+        {
+            var items = await _todoItemRepository.GetAllAsync();
+            return Ok(items);
+        }
 
         [HttpGet("{id}", Name = "GetTodoItem")]
         public async Task<ActionResult<TodoItem>> Get(string id)
         {
-            var todoItem = await _todoItemService.GetAsync(id);
-
-            if (todoItem == null)
-            {
-                return NotFound();
-            }
-
-            return todoItem;
+            var item = await _todoItemRepository.GetByIdAsync(id);
+            if (item == null) return NotFound();
+            return item;
         }
 
         [HttpGet("entity/{entityId}/{entityType}")]
-        public async Task<ActionResult<List<TodoItem>>> GetByEntity(string entityId, string entityType) =>
-            await _todoItemService.GetByEntityAsync(entityId, entityType);
-[HttpPost]
+        public async Task<ActionResult<List<TodoItem>>> GetByEntity(string entityId, string entityType)
+        {
+            var items = await _todoItemRepository.GetByEntityAsync(entityId, entityType);
+            return Ok(items);
+        }
+
+       [HttpPost]
 public async Task<ActionResult<object>> Create([FromForm] TodoItem todoItem, [FromForm] IFormFile? document)
 {
     if (document != null)
@@ -98,44 +112,33 @@ public async Task<ActionResult<object>> Create([FromForm] TodoItem todoItem, [Fr
     });
 }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(string id, [FromForm] TodoItem todoItemIn , IFormFile? document)
+
+      [HttpPut("{id}")]
+        public async Task<IActionResult> Update(string id, [FromForm] TodoItem todoItemIn, IFormFile? document)
         {
-            var existing = await _todoItemService.GetAsync(id);
+            var existing = await _todoItemRepository.GetByIdAsync(id);
+            if (existing == null) return NotFound();
 
-            if (existing == null)
-            {
-                return NotFound();
-            }
-          
-           if(document != null){
-             todoItemIn.DocumentUrl = await _s3service.UploadFileAsync(document);
-          }
-            else{
-                todoItemIn.DocumentUrl = existing.DocumentUrl;
-            }
-          
-             todoItemIn.Id =id;
-            await _todoItemService.UpdateAsync(id, todoItemIn);
+            todoItemIn.DocumentUrl = document != null
+                ? await _s3service.UploadFileAsync(document)
+                : existing.DocumentUrl;
 
+            todoItemIn.CreatedById = existing.CreatedById; // retain original CreatedById
+            todoItemIn.Id = id;
+
+            await _todoItemRepository.UpdateAsync(id, todoItemIn);
             return NoContent();
         }
+
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(string id)
         {
-            var todoItem = await _todoItemService.GetAsync(id);
+            var existing = await _todoItemRepository.GetByIdAsync(id);
+            if (existing == null) return NotFound();
 
-            if (todoItem == null)
-            {
-                return NotFound();
-            }
-
-            await _todoItemService.RemoveAsync(id);
-
+            await _todoItemRepository.DeleteAsync(id);
             return NoContent();
         }
-
-        
     }
 }

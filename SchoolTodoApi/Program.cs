@@ -1,63 +1,52 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Options;
 using SchoolTodoApi.Models;
 using SchoolTodoApi.Services;
+using SchoolTodoApi.Repositories.Interfaces;
+using SchoolTodoApi.Repositories.Implementations;
 using System.Text;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-
+using Hangfire;
+using Hangfire.Mongo;
+using Hangfire.Mongo.Migration.Strategies;
+using Hangfire.Mongo.Migration.Strategies.Backup;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Register configuration for database settings
+// ---------------------- MVC ----------------------
+builder.Services.AddControllersWithViews();
+
+// ---------------------- Configuration ----------------------
 builder.Services.Configure<SchoolDatabaseSettings>(
     builder.Configuration.GetSection("SchoolDatabaseSettings"));
-    builder.Services.Configure<AwsSettings>(builder.Configuration.GetSection("AwsSettings"));
+builder.Services.Configure<JwtSettings>(
+    builder.Configuration.GetSection("JwtSettings"));
+builder.Services.Configure<AwsSettings>(
+    builder.Configuration.GetSection("AwsSettings"));
+builder.Services.Configure<MailSettings>(
+    builder.Configuration.GetSection("MailSettings"));
 
-    builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
-
+// Singleton for DB settings
 builder.Services.AddSingleton<ISchoolDatabaseSettings>(sp =>
     sp.GetRequiredService<IOptions<SchoolDatabaseSettings>>().Value);
 
-// jwt settings ka config
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+// ---------------------- Repositories ----------------------
+builder.Services.AddScoped<ISchoolRepository, SchoolRepository>();
+builder.Services.AddScoped<IStudentRepository, StudentRepository>();
+builder.Services.AddScoped<ITodoItemRepository, TodoItemRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
 
+// ---------------------- Services ----------------------
+builder.Services.AddScoped<TodoItemService>();
+builder.Services.AddScoped<SchoolService>();
+builder.Services.AddScoped<StudentService>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<MailService>();
+builder.Services.AddScoped<S3Service>();
+builder.Services.AddScoped<ReminderService>(); // Reminder job service
+
+// ---------------------- JWT Authentication ----------------------
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
-
-
-
-
-
-// Register services
-builder.Services.AddSingleton<StudentService>(sp =>
-{
-    var logger = sp.GetRequiredService<ILogger<StudentService>>();
-    var settings = sp.GetRequiredService<ISchoolDatabaseSettings>();
-    try
-    {
-        logger.LogInformation($"Connecting to MongoDB at {settings.ConnectionString}");
-        return new StudentService(settings);
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Failed to connect to MongoDB");
-        throw;
-    }
-});
-
-builder.Services.AddSingleton<MailService>();
-builder.Services.AddSingleton<S3Service>();
-builder.Services.AddSingleton<SchoolService>();
-builder.Services.AddSingleton<TodoItemService>();
-builder.Services.AddSingleton<AuthService>();
-builder.Services.AddControllers();
-
-// Enable CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowReactApp", policy =>
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
-});
-
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -74,42 +63,69 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// // Configure Swagger
-// builder.Services.AddSwaggerGen(c =>
-// {
-//     c.SwaggerDoc("v1", new OpenApiInfo
-//     {
-//         Title = "SchoolTodoApi",
-//         Version = "v1",
-//         Description = "A simple API for managing schools, students, and todo items"
-//     });
-// });
+builder.Services.AddAuthorization();
 
+// ---------------------- CORS ----------------------
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp", policy =>
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+});
+
+// ---------------------- Hangfire Configuration ----------------------
+var mongoConnection = builder.Configuration["SchoolDatabaseSettings:ConnectionString"];
+var mongoDbName = builder.Configuration["SchoolDatabaseSettings:DatabaseName"];
+
+var hangfireOptions = new MongoStorageOptions
+{
+    MigrationOptions = new MongoMigrationOptions
+    {
+        MigrationStrategy = new MigrateMongoMigrationStrategy(), // Automatically migrate schema
+        BackupStrategy = new CollectionMongoBackupStrategy()     // Optional: backup collections
+    }
+};
+
+builder.Services.AddHangfire(config =>
+    config.UseMongoStorage(mongoConnection, mongoDbName, hangfireOptions));
+
+builder.Services.AddHangfireServer();
+
+// ---------------------- Build the app ----------------------
 var app = builder.Build();
 
-// Middleware
-if (app.Environment.IsDevelopment())
+// ---------------------- Middleware ----------------------
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Home/Error");
+    app.UseHsts();
+}
+else
 {
     app.UseDeveloperExceptionPage();
 }
 
-// app.UseSwagger();
-// app.UseSwaggerUI();
-
 app.UseHttpsRedirection();
+app.UseStaticFiles();
+
+app.UseRouting();
 
 app.UseCors("AllowReactApp");
 
-app.UseAuthentication();   
+app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers();
+// ---------------------- Hangfire Dashboard + Job ----------------------
+app.UseHangfireDashboard(); // Access at /hangfire
 
-// Redirect root to Swagger UI
-app.MapGet("/", context =>
-{
-    context.Response.Redirect("/swagger");
-    return Task.CompletedTask;
-});
+RecurringJob.AddOrUpdate<ReminderService>(
+    "todo-reminder",
+    service => service.SendUpcomingTodoReminders(),
+    Cron.Daily
+);
+
+// ---------------------- Routing ----------------------
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
