@@ -38,8 +38,6 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 
 // ---------------------- Services ----------------------
 builder.Services.AddScoped<TodoItemService>();
-builder.Services.AddScoped<SchoolService>();
-builder.Services.AddScoped<StudentService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<MailService>();
 builder.Services.AddScoped<S3Service>();

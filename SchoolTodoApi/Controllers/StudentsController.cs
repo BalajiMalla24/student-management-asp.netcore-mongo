@@ -43,7 +43,7 @@ namespace SchoolTodoApi.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<Student>> Create(Student student)
+        public async Task<ActionResult<Student>> Create([FromBody] Student student)
         {
             try
             {

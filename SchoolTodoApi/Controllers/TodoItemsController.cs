@@ -64,11 +64,22 @@ namespace SchoolTodoApi.Controllers
         }
 
        [HttpPost]
-public async Task<ActionResult<object>> Create([FromForm] TodoItem todoItem, [FromForm] IFormFile? document)
+        public async Task<ActionResult<object>> Create([FromForm] TodoItemCreateDto dto)
 {
-    if (document != null)
+    var todoItem = new TodoItem
     {
-        var s3url = await _s3service.UploadFileAsync(document);
+        Title = dto.Title,
+        Description = dto.Description,
+        IsCompleted = dto.IsCompleted,
+        DueDate = dto.DueDate,
+        RelatedEntityId = dto.RelatedEntityId,
+        RelatedEntityType = dto.RelatedEntityType,
+        CreatedById = dto.CreatedById
+    };
+
+    if (dto.Document != null)
+    {
+        var s3url = await _s3service.UploadFileAsync(dto.Document);
         if (string.IsNullOrEmpty(s3url))
         {
             return BadRequest("File upload failed");
@@ -76,8 +87,7 @@ public async Task<ActionResult<object>> Create([FromForm] TodoItem todoItem, [Fr
         todoItem.DocumentUrl = s3url;
     }
 
-    // Get user details by CreatedById (instead of RelatedEntityId)
-    var user = await _users.Find(u => u.Id == todoItem.CreatedById).FirstOrDefaultAsync();
+    var user = await _users.Find(u => u.Id == dto.CreatedById).FirstOrDefaultAsync();
 
     bool emailSent = false;
     string emailStatusMessage = "";

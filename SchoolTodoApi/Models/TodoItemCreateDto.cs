@@ -11,6 +11,8 @@ namespace SchoolTodoApi.Models
         public DateTime DueDate { get; set; }
         public string RelatedEntityId { get; set; } = null!;
         public string RelatedEntityType { get; set; } = null!;
+        public string CreatedById { get; set; }
         public IFormFile? Document { get; set; }
+
     }
 }
